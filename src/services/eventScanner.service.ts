@@ -2,6 +2,7 @@ import { BlockchainService, ParsedFeeCollectedEvent } from './blockchain.service
 import { FeeCollectedEventModel, ScanProgressModel } from '../models'
 import { logger } from '../utils/logger'
 import { config } from '../config'
+import { RateLimitHandler } from '../utils/rateLimitHandler'
 
 /**
  * Service responsible for scanning blockchain events and storing them in the database
@@ -12,6 +13,7 @@ export class EventScannerService {
   private readonly chain: string
   private readonly oldestBlock: number
   private readonly blocksPerBatch: number
+  private readonly rateLimitHandler: RateLimitHandler
   private isScanning: boolean = false
 
   /**
@@ -26,12 +28,14 @@ export class EventScannerService {
     blockchainService: BlockchainService,
     chain: string = 'polygon',
     oldestBlock?: number,
-    blocksPerBatch?: number
+    blocksPerBatch?: number,
+    rateLimitHandler?: RateLimitHandler
   ) {
     this.blockchainService = blockchainService
     this.chain = chain
     this.oldestBlock = oldestBlock || config.blockchain.oldestBlock
     this.blocksPerBatch = blocksPerBatch || config.scanner.blocksPerBatch
+    this.rateLimitHandler = rateLimitHandler || new RateLimitHandler()
 
     logger.info('EventScannerService initialized', {
       chain: this.chain,
@@ -252,31 +256,6 @@ export class EventScannerService {
     }
   }
 
-  /**
-   * Extracts retry delay from rate limit error message
-   * @param error - The error object
-   * @returns Retry delay in milliseconds, or null if not a rate limit error
-   */
-  private extractRetryDelay(error: unknown): number | null {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    
-    // Look for patterns like "retry in 10m0s", "retry in 5m", "retry in 30s"
-    const retryMatch = errorMessage.match(/retry in (\d+)m(\d+)s|retry in (\d+)m|retry in (\d+)s/i)
-    
-    if (retryMatch) {
-      const minutes = parseInt(retryMatch[1] || retryMatch[3] || '0', 10)
-      const seconds = parseInt(retryMatch[2] || retryMatch[4] || '0', 10)
-      return (minutes * 60 + seconds) * 1000 // Convert to milliseconds
-    }
-    
-    // Check for rate limit error codes
-    if (errorMessage.includes('rate limit') || errorMessage.includes('Too many requests')) {
-      // Default to 5 minutes if we can't parse the exact time
-      return 5 * 60 * 1000
-    }
-    
-    return null
-  }
 
   /**
    * Starts continuous scanning with catch-up mode
@@ -329,21 +308,21 @@ export class EventScannerService {
           timeoutId = setTimeout(scanLoop, 2000) // 2 seconds between scans (increased for rate limit safety)
         }
       } catch (error) {
-        // Check if this is a rate limit error
-        const retryDelay = this.extractRetryDelay(error)
+        // Analyze error to check if it's a rate limit
+        const rateLimitInfo = this.rateLimitHandler.analyzeError(error)
         
-        if (retryDelay) {
-          const retryMinutes = Math.ceil(retryDelay / 60000)
-          logger.warn('Rate limit hit, waiting before retry', {
-            retryDelayMs: retryDelay,
-            retryMinutes,
+        if (rateLimitInfo.isRateLimit && rateLimitInfo.retryDelayMs) {
+          // Log rate limit information
+          this.rateLimitHandler.logRateLimit(rateLimitInfo, {
+            chain: this.chain,
             message: error instanceof Error ? error.message : String(error),
           })
-          console.log(`\n⚠️  Rate limit reached! Waiting ${retryMinutes} minutes before retrying...\n`)
-          timeoutId = setTimeout(scanLoop, retryDelay)
+          
+          // Wait for the specified delay
+          timeoutId = setTimeout(scanLoop, rateLimitInfo.retryDelayMs)
         } else {
+          // For other errors, use standard interval
           logger.error('Error in continuous scan iteration:', error)
-          // On other errors, wait standard interval before retrying
           timeoutId = setTimeout(scanLoop, interval)
         }
       }
