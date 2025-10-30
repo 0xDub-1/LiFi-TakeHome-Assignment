@@ -35,7 +35,7 @@ export class FeeCollectedEvent {
   /**
    * The integrator address that triggered the fee collection
    */
-  @prop({ required: true, type: String, lowercase: true, index: true })
+  @prop({ required: true, type: String, lowercase: true })
   public integrator!: string
 
   /**

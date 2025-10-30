@@ -19,7 +19,7 @@ export class ScanProgress {
    * The blockchain identifier
    * @example 'polygon', 'ethereum', 'arbitrum'
    */
-  @prop({ required: true, type: String, unique: true })
+  @prop({ required: true, type: String })
   public chain!: string
 
   /**
