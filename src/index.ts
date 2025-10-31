@@ -21,6 +21,7 @@ import { Server } from 'http'
  */
 async function main() {
   let apiServer: Server | null = null
+  let isShuttingDown = false
 
   try {
     console.log('═══════════════════════════════════════════════════')
@@ -93,30 +94,59 @@ async function main() {
 
     // Handle graceful shutdown
     const shutdown = async (signal: string) => {
+      // Prevent multiple shutdown calls (this was causing infinite loop)
+      if (isShuttingDown) {
+        console.log(`⚠️  Shutdown already in progress, ignoring ${signal}`)
+        return
+      }
+      
+      isShuttingDown = true
+      
       logger.info(`${signal} received, shutting down gracefully...`)
       console.log(`\n🛑 ${signal} received, shutting down...`)
 
-      // Stop scanning
-      stopScanning()
-      logger.info('Scanner stopped')
+      // Set a timeout to force exit if shutdown hangs
+      const forceExitTimeout = setTimeout(() => {
+        console.log('⚠️  Shutdown taking too long, forcing exit')
+        process.exit(1)
+      }, 10000) // 10 seconds max
 
-      // Close API server
-      if (apiServer) {
-        await new Promise<void>((resolve, reject) => {
-          apiServer!.close(err => {
-            if (err) reject(err)
-            else resolve()
+      try {
+        // Stop scanning
+        if (typeof stopScanning === 'function') {
+          stopScanning()
+          logger.info('Scanner stopped')
+        }
+
+        // Close API server
+        if (apiServer) {
+          await new Promise<void>((resolve) => {
+            apiServer!.close(err => {
+              if (err) {
+                logger.error('Error closing API server:', err)
+              }
+              resolve() // Always resolve, even on error
+            })
           })
-        })
-        logger.info('API server stopped')
+          logger.info('API server stopped')
+        }
+
+        // Close database connection
+        try {
+          await closeDatabaseConnection()
+          logger.info('Database connection closed')
+        } catch (error) {
+          logger.error('Error closing database:', error)
+        }
+
+        clearTimeout(forceExitTimeout)
+        console.log('✅ Shutdown complete')
+        process.exit(0)
+      } catch (error) {
+        logger.error('Error during shutdown:', error)
+        clearTimeout(forceExitTimeout)
+        process.exit(1)
       }
-
-      // Close database connection
-      await closeDatabaseConnection()
-      logger.info('Database connection closed')
-
-      console.log('✅ Shutdown complete')
-      process.exit(0)
     }
 
     // Register shutdown handlers
@@ -126,12 +156,20 @@ async function main() {
     // Keep the process running
     process.on('uncaughtException', error => {
       logger.error('Uncaught exception:', error)
-      shutdown('UNCAUGHT_EXCEPTION')
+      // Call shutdown without await (shutdown handles its own errors now)
+      shutdown('UNCAUGHT_EXCEPTION').catch(err => {
+        console.error('Fatal error during shutdown:', err)
+        process.exit(1)
+      })
     })
 
     process.on('unhandledRejection', (reason, promise) => {
       logger.error('Unhandled rejection at:', promise, 'reason:', reason)
-      shutdown('UNHANDLED_REJECTION')
+      // Call shutdown without await (shutdown handles its own errors now)
+      shutdown('UNHANDLED_REJECTION').catch(err => {
+        console.error('Fatal error during shutdown:', err)
+        process.exit(1)
+      })
     })
   } catch (error) {
     logger.error('Fatal error during startup:', error)
