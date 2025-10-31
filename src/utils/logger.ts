@@ -24,18 +24,18 @@ export const logger = winston.createLogger({
   ],
 })
 
-// If we're not in production, also log to the console with a simple format
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ level, message, timestamp, ...meta }) => {
-          const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
-          return `${timestamp} [${level}]: ${message} ${metaStr}`
-        })
-      ),
-    })
-  )
-}
+// Always log to console for Docker/production environments
+// Docker captures stdout/stderr, making logs visible via docker-compose logs
+// Files are still written for persistence within the container
+logger.add(
+  new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.printf(({ level, message, timestamp, ...meta }) => {
+        const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
+        return `${timestamp} [${level}]: ${message} ${metaStr}`
+      })
+    ),
+  })
+)
 
