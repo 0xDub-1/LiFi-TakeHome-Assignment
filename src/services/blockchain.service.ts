@@ -30,6 +30,10 @@ export class BlockchainService {
   private readonly contractAddress: string
   private readonly rpcUrl: string
   private readonly rateLimitHandler: RateLimitHandler
+  
+  // Cache for current block number to reduce RPC calls
+  private currentBlockCache: { blockNumber: number; timestamp: number } | null = null
+  private readonly BLOCK_CACHE_TTL_MS = 30000 // 30 seconds
 
   /**
    * Creates a new BlockchainService instance
@@ -84,19 +88,43 @@ export class BlockchainService {
 
   /**
    * Gets the current block number from the blockchain
+   * Uses a 30-second cache to avoid excessive RPC calls (especially in catch-up mode)
    * Includes retry logic with rate limit handling
    * 
    * @returns The latest block number
    * @throws Error if unable to fetch block number
    */
   async getCurrentBlockNumber(): Promise<number> {
+    // Check if we have a valid cached value
+    if (this.currentBlockCache) {
+      const age = Date.now() - this.currentBlockCache.timestamp
+      if (age < this.BLOCK_CACHE_TTL_MS) {
+        logger.debug('Using cached block number', {
+          blockNumber: this.currentBlockCache.blockNumber,
+          cacheAge: Math.round(age / 1000) + 's',
+        })
+        return this.currentBlockCache.blockNumber
+      }
+    }
+    
     let retries = 0
     const maxRetries = 5 // Match the constructor configuration
 
     while (retries <= maxRetries) {
       try {
         const blockNumber = await this.provider.getBlockNumber()
-        logger.debug('Current block number fetched', { blockNumber })
+        
+        // Store in cache
+        this.currentBlockCache = {
+          blockNumber,
+          timestamp: Date.now(),
+        }
+        
+        logger.debug('Current block number fetched and cached', { 
+          blockNumber,
+          cacheFor: Math.round(this.BLOCK_CACHE_TTL_MS / 1000) + 's',
+        })
+        
         return blockNumber
       } catch (error: any) {
         // Handle NETWORK_ERROR by reinitializing the provider
