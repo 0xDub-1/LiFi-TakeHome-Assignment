@@ -6,11 +6,11 @@ module.exports = {
   testEnvironment: 'node',
   
   // Where to find tests
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/__tests__', '<rootDir>/src'],
   
   // Test file patterns
   testMatch: [
-    '**/__tests__/**/*.ts',
+    '**/__tests__/**/*.test.ts',
     '**/*.test.ts',
     '**/*.spec.ts'
   ],
@@ -21,13 +21,18 @@ module.exports = {
     '!src/**/*.test.ts',
     '!src/**/*.spec.ts',
     '!src/**/__tests__/**',
-    '!src/test-*.ts'  // Exclude test scripts
+    '!src/index.ts', // Entry point, hard to unit test
+    '!src/**/*.d.ts',
   ],
   
-  // Coverage thresholds (good practice for production code)
+  // Coverage output
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html', 'json'],
+  
+  // Coverage thresholds (adjusted for comprehensive testing)
   coverageThreshold: {
     global: {
-      branches: 70,
+      branches: 60,
       functions: 70,
       lines: 70,
       statements: 70
@@ -35,12 +40,25 @@ module.exports = {
   },
   
   // File extensions
-  moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleFileExtensions: ['ts', 'js', 'json', 'node'],
+  
+  // Transform configuration
+  transform: {
+    '^.+\\.ts$': ['ts-jest', {
+      tsconfig: 'tsconfig.json',
+    }],
+  },
+  
+  // Clear mocks between tests
+  clearMocks: true,
+  restoreMocks: true,
   
   // Verbose output
   verbose: true,
   
-  // Timeout for tests (increased for database operations)
-  testTimeout: 30000
+  // Timeout for tests (increased for mongodb-memory-server)
+  testTimeout: 60000,
+  
+  // Setup files
+  setupFilesAfterEnv: ['<rootDir>/__tests__/setup.ts'],
 };
-

@@ -37,7 +37,7 @@ export class ScanProgress {
   /**
    * Timestamp of the last successful scan
    */
-  @prop({ required: true, type: Date })
+  @prop({ required: true, type: Date, default: () => new Date() })
   public lastScanTimestamp!: Date
 
   /**
