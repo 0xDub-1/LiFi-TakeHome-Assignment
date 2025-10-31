@@ -273,6 +273,21 @@ export class EventScannerService {
 
     logger.info('Starting continuous scanning with catch-up mode', { intervalMs: interval })
 
+    /**
+     * Wrapper function to safely execute scanLoop and catch any unhandled errors
+     * This prevents unhandled promise rejections from crashing the application
+     */
+    const safeScanLoop = () => {
+      // Call the async scanLoop and catch any errors that escape the try/catch
+      scanLoop().catch(error => {
+        logger.error('Critical error in scan loop (caught by safety wrapper):', error)
+        // Schedule retry after interval to keep the scanner running
+        if (!shouldStop) {
+          timeoutId = setTimeout(safeScanLoop, interval)
+        }
+      })
+    }
+
     const scanLoop = async () => {
       if (shouldStop) return
 
@@ -283,7 +298,7 @@ export class EventScannerService {
         const progress = await this.getScanProgress()
         if (!progress) {
           // Schedule next scan after interval
-          timeoutId = setTimeout(scanLoop, interval)
+          timeoutId = setTimeout(safeScanLoop, interval)
           return
         }
 
@@ -296,7 +311,7 @@ export class EventScannerService {
             lastScannedBlock: progress.lastScannedBlock,
             latestBlock: progress.latestBlockNumber,
           })
-          timeoutId = setTimeout(scanLoop, interval)
+          timeoutId = setTimeout(safeScanLoop, interval)
         } else {
           // Still behind, scan immediately (catch-up mode)
           logger.info('Scanner in catch-up mode, scanning continuously', {
@@ -305,7 +320,7 @@ export class EventScannerService {
             progress: `${((progress.lastScannedBlock / (progress.latestBlockNumber || 1)) * 100).toFixed(2)}%`,
           })
           // Small delay to prevent overwhelming the RPC
-          timeoutId = setTimeout(scanLoop, 2000) // 2 seconds between scans (increased for rate limit safety)
+          timeoutId = setTimeout(safeScanLoop, 2000) // 2 seconds between scans (increased for rate limit safety)
         }
       } catch (error) {
         // Analyze error to check if it's a rate limit
@@ -319,17 +334,17 @@ export class EventScannerService {
           })
           
           // Wait for the specified delay
-          timeoutId = setTimeout(scanLoop, rateLimitInfo.retryDelayMs)
+          timeoutId = setTimeout(safeScanLoop, rateLimitInfo.retryDelayMs)
         } else {
           // For other errors, use standard interval
           logger.error('Error in continuous scan iteration:', error)
-          timeoutId = setTimeout(scanLoop, interval)
+          timeoutId = setTimeout(safeScanLoop, interval)
         }
       }
     }
 
-    // Start the scan loop
-    scanLoop()
+    // Start the scan loop with the safety wrapper
+    safeScanLoop()
 
     // Return stop function
     return () => {
