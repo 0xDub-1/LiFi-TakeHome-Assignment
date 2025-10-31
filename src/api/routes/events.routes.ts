@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { FeeCollectedEventModel } from '../../models'
 import { logger } from '../../utils/logger'
+import { config } from '../../config'
 
 const router = Router()
 
@@ -25,7 +26,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const {
       integrator,
-      chain = 'polygon',
+      chain = config.blockchain.chain,
       token,
       fromBlock,
       toBlock,
@@ -120,7 +121,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/integrators', async (req: Request, res: Response) => {
   try {
-    const { chain = 'polygon' } = req.query
+    const { chain = config.blockchain.chain } = req.query
 
     logger.info('Fetching unique integrators', { chain })
 
@@ -175,7 +176,7 @@ router.get('/integrators', async (req: Request, res: Response) => {
  */
 router.get('/stats', async (req: Request, res: Response) => {
   try {
-    const { integrator, chain = 'polygon' } = req.query
+    const { integrator, chain = config.blockchain.chain } = req.query
 
     const matchFilter: Record<string, unknown> = { chain }
     if (integrator) {

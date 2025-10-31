@@ -50,7 +50,7 @@ async function main() {
     // Step 4: Initialize BlockchainService
     logger.info('Initializing blockchain service...')
     const blockchainService = new BlockchainService(
-      config.blockchain.polygonRpcUrl,
+      config.blockchain.rpcUrl,
       config.blockchain.feeCollectorAddress
     )
 
@@ -62,7 +62,7 @@ async function main() {
     logger.info('Initializing event scanner service...')
     const eventScanner = new EventScannerService(
       blockchainService,
-      'polygon',
+      config.blockchain.chain,
       config.blockchain.oldestBlock,
       config.scanner.blocksPerBatch
     )
@@ -84,7 +84,7 @@ async function main() {
     console.log('\n═══════════════════════════════════════════════════')
     console.log('✅ Scanner is running!')
     console.log('═══════════════════════════════════════════════════')
-    console.log(`📊 Chain: polygon`)
+    console.log(`📊 Chain: ${config.blockchain.chain}`)
     console.log(`⏰ Scan interval: ${config.scanner.intervalMs / 1000}s (maintenance mode)`)
     console.log(`📦 Blocks per batch: ${config.scanner.blocksPerBatch}`)
     console.log(`🔗 Contract: ${config.blockchain.feeCollectorAddress}`)

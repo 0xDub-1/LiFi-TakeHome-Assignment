@@ -15,7 +15,8 @@ export const config = {
 
   // Blockchain configuration
   blockchain: {
-    polygonRpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
+    chain: process.env.CHAIN_NAME || 'polygon',
+    rpcUrl: process.env.RPC_URL || process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
     feeCollectorAddress:
       process.env.FEE_COLLECTOR_CONTRACT_ADDRESS ||
       '0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9',
@@ -46,8 +47,9 @@ export const config = {
 export function validateConfig(): void {
   const required = [
     { key: 'MONGODB_URI', value: config.mongodb.uri },
-    { key: 'POLYGON_RPC_URL', value: config.blockchain.polygonRpcUrl },
+    { key: 'RPC_URL or POLYGON_RPC_URL', value: config.blockchain.rpcUrl },
     { key: 'FEE_COLLECTOR_CONTRACT_ADDRESS', value: config.blockchain.feeCollectorAddress },
+    { key: 'CHAIN_NAME', value: config.blockchain.chain },
   ]
 
   const missing = required.filter(({ value }) => !value)
