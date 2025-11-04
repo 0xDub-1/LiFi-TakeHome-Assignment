@@ -675,7 +675,6 @@ const rateLimitInfo = rateLimitHandler.analyzeError(error)
 // Returns: { isRateLimit: true, retryDelayMs: 600000, retryMinutes: 10 }
 
 // Wait exactly 10 minutes as requested by RPC
-await sleep(rateLimitInfo.retryDelayMs)
 // Retry automatically
 ```
 
